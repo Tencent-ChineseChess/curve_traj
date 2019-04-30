@@ -1,13 +1,35 @@
 close all; clc;
-clear x_all y_all math_traj;
-math_traj = gen_math_traj(3, 5, 0.1, 0.1);
-for i = 1:length(math_traj)
-    x_all(i) = math_traj(i).x;
-    y_all(i) = math_traj(i).y;
+clear x_all y_all math_traj base_start base_dest base_traj
+
+Vc = 0.1; 
+delta_t = 0.1;
+
+base_start.x = 0.2;
+base_start.y = -0.2;
+base_start.z = 0.5;
+base_dest.x = 0.8;
+base_dest.y = 0.3;
+base_dest.z = 0.1;
+
+base_traj = get_base_traj(base_start, base_dest, Vc, delta_t);
+
+for i = 1:size(base_traj,2)
+    x_all(i) = base_traj(1,i);
+    y_all(i) = base_traj(2,i);
+    z_all(i) = base_traj(3,i);
 end
+
 figure, 
-plot(x_all, y_all);
+plot3(x_all, y_all, z_all);
 axis equal;
+grid on;
+xlim([0, 1.0]);
+ylim([-0.5, 0.5]);
+zlim([0, 0.5]);
+xlabel('x in meters');
+ylabel('y in meters');
+zlabel('z in meters');
+view(175, 15);
 
 function point_all = gen_math_traj(point_x, point_y, Vc, delta_t)
     if(point_x>0.00001)
@@ -54,6 +76,39 @@ function point = output_math_curve(x, k, Vc)
     point.Vy = Vc * sin(atan(y_dot));
 end
 
-function base_traj = get_base_traj(math_traj)
 
+function base_traj = get_base_traj(base_start, base_dest, Vc, delta_t)
+    % build up transformation matrix
+    theta = atan2(base_dest.y-base_start.y, base_dest.x-base_start.x );
+    R = eye(3) * rotz(theta) * roty(-pi/2) * rotx(pi/2);
+    Tmath_wrt_base = [R, [base_dest.x; base_dest.y; base_dest.z]; 0, 0, 0, 1];
+    Tbase_wrt_math = [R', -R'*[base_dest.x; base_dest.y; base_dest.z]; 0, 0, 0, 1];
+    
+    math_dest = Tbase_wrt_math * [base_dest.x; base_dest.y; base_dest.z; 1];
+%     print(['math_dest is ', num2str(math_dest')]);
+    
+    math_start = Tbase_wrt_math * [base_start.x; base_start.y; base_start.z; 1];
+    math_traj = gen_math_traj(math_start(1), math_start(2), Vc, delta_t);
+    for i = 1:length(math_traj)
+        base_traj(:,i) = Tmath_wrt_base * [math_traj(i).x; math_traj(i).y; 0; 1];
+    end
 end
+
+function Rx = rotx(tx)
+    Rx = [1,   0,  0;
+        0,  cos(tx), -sin(tx);
+        0,  sin(tx), cos(tx)];
+end
+
+function Ry = roty(ty)
+    Ry = [cos(ty),   0,  sin(ty);
+        0,  1, 0;
+        -sin(ty),  0, cos(ty)];
+end
+
+function Rz = rotz(tz)
+    Rz = [cos(tz),   -sin(tz),  0;
+        sin(tz),    cos(tz),  0;
+        0,  0, 1];
+end
+
